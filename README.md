@@ -1,51 +1,33 @@
-# GM-Drawer
-A minimalist drawnig app
 
+# GM-Drawer A minimalist drawing application built with Python and Tkinter.
+--- 
+## Preview
+<!-- Add screenshot here --> 
+--- 
+## Features - Freehand drawing (mouse-based) 
+- Simple and responsive UI (User Interface)
+- Lightweight and fast execution
+- Basic color support
+---
+## Installation
+### Prerequisites - Python 3.x installed 
+### Setup 
+```bash  
+pip install pillow python GM_Drawer.py
+```
 
-## Features 
+### Usage Click and drag to draw
+- Modify parameters directly in code (temporary)
+- Extend functionality via modular additions
 
-### Three drawing Mode
+### Architecture (current) 
+- Procedural structure (non-OOP)
+- Tkinter for GUI (Graphical User Interface)
+- Pillow (PIL - Python Imaging Library) for image handling
 
-by picking on the Menu it's possible to choose between simple( simple draw ), pixelisé( drawing with pixel appearence ), 
-and bulles( drawing bubbles apprearance ) .
-
-### geometric Draw 
-
-by picking on the Menu you can draw a rectangle or an ellipse on the canvas.
-
-### Saving 
-save your picture as a .jpg file .
-
-### undo/redo 
-
-to come back after a mistake 
-
-### Eraser 
-
-to erase 
-
-### colorchoosing 
-
-a windows's colorchooser  to choose color 
-
-## Status 
-
-This project isn't already complete . there is still a slider to add .
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+### Roadmap
+- [ ] Brush size slider (UI control)
+- [ ] OOP refactor (Object-Oriented Programming)
+- [ ] Shape selection & manipulation
+- [ ] Save / Load drawings
+- [ ] Color picker integration Contribution 
