@@ -91,7 +91,7 @@ def end_draw(event):
     global history, current_action, preview_id  
 
     if current_tool == 'rectangle' and preview_id is not None:
-        can.delete(preview_id)
+        can.delete(preview_id) 
         preview_id = None
         # Commit final shape to canvas + PIL
         x0, y0 = min(lx, event.x), min(ly, event.y)
