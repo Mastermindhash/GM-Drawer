@@ -3,6 +3,8 @@
 --- 
 ## Preview
 <!-- Add screenshot here --> 
+<img width="1024" height="559" alt="image_5343a3d9-96e7-45c0-b735-fb42e3e364ba" src="https://github.com/user-attachments/assets/e20be5bb-12d5-4b12-9c87-af49285c9915" />
+
 --- 
 ## Features 
 - Freehand drawing (mouse-based)
