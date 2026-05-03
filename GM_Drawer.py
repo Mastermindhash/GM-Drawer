@@ -1,254 +1,323 @@
-#------------- IMPORTATIONS -----------------
+# -------------- imports --------------------8
 
 import tkinter as tk
 from PIL import Image, ImageDraw
 from tkinter import filedialog, colorchooser
-  
-#-------------- Programme Principal ---------
 
-lx, ly, col = None, None, 'pink'
-ID = []
-history, mirai = [], []
-current_action, actions = [], []
-canvas_w, canvas_h = 500, 400 
-current_tool = ''
-w = 1
-bg_col = 'white'
-preview_id = None
+# ------------------- Classes ---------------
 
-image = Image.new("RGB", (canvas_w, canvas_h), bg_col)
-draw = ImageDraw.Draw(image)
+class Action(object) :
+
+    def draw(self, canvas) :
+        pass
+    
+    def draw_pil(self, pil_draw) :
+        pass
+
+class Shape(Action) :
+    def __init__(self, shape_type, x0, y0, x1, y1, color) :
+        self.shape_type = shape_type
+        self.x0 = x0
+        self.y0 = y0
+        self.x1 = x1
+        self.y1 = y1
+        self.color = color 
+        self.canvas_id = None
+
+    def draw(self, canvas) : 
+        if self.shape_type == 'rectangle' :
+            if self.canvas_id is not None: 
+                canvas.delete(self.canvas_id)
+            self.canvas_id = canvas.create_rectangle(self.x0, self.y0, self.x1, self.y1,
+                                                          fill=self.color, outline=self.color)
+            return  
+
+        elif self.shape_type == 'oval' :
+            if self.canvas_id is not None: 
+                canvas.delete(self.canvas_id)
+            self.canvas_id = canvas.create_oval(self.x0, self.y0, self.x1, self.y1,
+                                                     fill=self.color, outline=self.color)
+            return
+            
+    def draw_pil(self, pil_draw) :
+        if self.shape_type == 'rectangle' :
+            pil_draw.rectangle((self.x0, self.y0, self.x1, self.y1),
+                               fill=self.color, outline=self.color)
+            return  
+
+        elif self.shape_type == 'oval' :
+            pil_draw.ellipse((self.x0, self.y0, self.x1, self.y1),
+                              fill=self.color, outline=self.color)
+            return
+            
+    def move(self, A: tuple, B: tuple, canvas) :
+        """Translation by vector U = B - A"""
+        dx = B[0] - A[0]
+        dy = B[1] - A[1]
+        self.x0 += dx;  self.y0 += dy
+        self.x1 += dx;  self.y1 += dy
+        canvas.move(self.canvas_id, dx, dy)  
+
+class Freehand(Action) :
+    def __init__(self, x0, y0, x1, y1, s_width, col, stroke_type):
+        self.stroke_type = stroke_type
+        self.x0 = x0
+        self.y0 = y0
+        self.x1 = x1
+        self.y1 = y1
+        self.col = col 
+        self.w = s_width
+
+    def draw(self, canvas):
+        if self.stroke_type in ('line', '') :
+            canvas.create_line(self.x0, self.y0, self.x1, self.y1, fill=self.col, width=self.w)
+        elif self.stroke_type == 'pixel' :
+            x0, y0 = min(self.x0, self.x1), min(self.y0, self.y1)
+            x1, y1 = max(self.x0, self.x1), max(self.y0, self.y1)
+            canvas.create_rectangle(x0, y0, x1, y1,
+                                         fill=self.col, outline=self.col, width=self.w)
+        elif self.stroke_type == 'bubble' :
+            x0, y0 = min(self.x0, self.x1), min(self.y0, self.y1)
+            x1, y1 = max(self.x0, self.x1), max(self.y0, self.y1)
+                
+            canvas.create_oval(x0, y0, x1, y1,
+                                              fill=self.col, outline=self.col, width=self.w)
+        elif self.stroke_type == 'eraser' :
+            canvas.create_line(self.x0, self.y0, self.x1, self.y1, fill=self.bg_col, width=15)
+
+    def draw_pil(self, pil_draw):
+        if self.stroke_type in ('line', '') :
+            pil_draw.line((self.x0, self.y0, self.x1, self.y1), fill=self.col, width=self.w)
+        elif self.stroke_type == 'pixel' :
+            x0, y0 = min(self.x0, self.x1), min(self.y0, self.y1)
+            x1, y1 = max(self.x0, self.x1), max(self.y0, self.y1)
+            pil_draw.rectangle((x0, y0, x1, y1),
+                                          fill=self.col, outline=self.col, width=self.w)
+        elif self.stroke_type == 'bubble' :
+            x0, y0 = min(self.x0, self.x1), min(self.y0, self.y1)
+            x1, y1 = max(self.x0, self.x1), max(self.y0, self.y1)
+            pil_draw.ellipse((x0, y0, x1, y1),
+                                              fill=self.col, outline=self.col, width=self.w)        
+        elif self.stroke_type == 'eraser' :
+            pil_draw.line((self.x0, self.y0, self.x1, self.y1), fill=self.bg_col, width=15)
 
 
-fen = tk.Tk()
-fen.title("----------------------------------------GM-Drawer------------------------------------- ")
-can = tk.Canvas(fen, width=canvas_w, height=canvas_h, bg=bg_col)
-can.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)
+
+class DrawingCanvas(object) :
+    def __init__(self, window) :
+        # tk.Canvas widget
+        self.bg_col = 'white'
+        Action.bg_col = self.bg_col
+        self.wid_width, self.wid_height = 800, 600
+        self.widget = tk.Canvas(window, width=self.wid_width, height=self.wid_height, bg=self.bg_col)
+        self.widget.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)
+        self.current_tool = ''
+        self.col = 'red'
+        self.w = 1
 
 
-#------------- fonctions -------------------
+        # PIL backing image 
+        self.pil_image = Image.new("RGB", (self.wid_width, self.wid_height), self.bg_col)
+        self.pil_draw  = ImageDraw.Draw(self.pil_image)
 
-def get_canvas_size():
-    can.update_idletasks()
-    return can.winfo_width(), can.winfo_height()
+        # History
+        self.history = []   # committed strokes + shapes
+        self.mirai   = []   # redo stack
+        self.pile    = []   # shapes (Scene objects)
 
-
-def set_tool(tool):
-    global current_tool, w
-    current_tool = tool
+        # Bindings
+        self._bind()
    
+    def _get_canvas_size(self) :
+        self.widget.update_idletasks() 
+        return self.widget.winfo_width(), self.widget.winfo_height() 
 
-def start_draw(event):
-    global lx, ly, current_action, preview_id
-    lx, ly = event.x, event.y
-    current_action = []
-    preview_id = None 
+    def set_tool(self, tool_name) :
+        self.current_tool = tool_name
 
+    def _bind(self):
+        self.widget.bind("<Button-1>",        self.on_press)
+        self.widget.bind("<B1-Motion>",       self.on_drag)
+        self.widget.bind("<ButtonRelease-1>", self.on_release)
 
-def Draw(event):
-    global lx, ly, col, current_tool, current_action, w, image, draw, preview_id
+    def _hit_test(self, x, y) :
+        """Returns the topmost shape containing (x, y), or None if no shape contains it."""
+        for shape in reversed(self.pile):
+            if (min(shape.x0, shape.x1) <= x <= max(shape.x0, shape.x1)
+                 and min(shape.y0, shape.y1) <= y <= max(shape.y0, shape.y1)):
+                return shape
+        return None       
 
-    if not event:
-        return
+    def on_press(self, event) :
+        self.lx, self.ly, self.current_stroke, self.preview_id =  event.x, event.y, [], None
+        self.selected = self._hit_test(event.x, event.y)
 
-    if current_tool == 'rectangle':
-        if preview_id is not None:
-            can.delete(preview_id)
-        preview_id = can.create_rectangle(lx, ly, event.x, event.y, fill='', outline='blue', width=w  )
-        return  
-       
-    if current_tool == 'oval' :
-        if preview_id is not None:
-            can.delete(preview_id)
-        preview_id = can.create_oval(lx, ly, event.x, event.y, fill='', outline='blue', width=w  )
-        return  
+    def on_drag(self, event):
+        if not event:
+            return
 
-    if current_tool == 'line' or current_tool == '':
-        can.create_line(lx, ly, event.x, event.y, fill=col, width=w)
-        draw.line((lx, ly, event.x, event.y), fill=col, width=w)
+        if self.selected is not None:
+            self.selected.move((self.lx, self.ly), (event.x, event.y), self.widget)
+            self.lx, self.ly = event.x, event.y
+            return
+        
+    # --- Rubber-band shapes ---
+        if self.current_tool == 'rectangle':
+            if self.preview_id is not None:
+                self.widget.delete(self.preview_id)
+            self.preview_id = self.widget.create_rectangle(self.lx, self.ly, event.x, event.y,
+                                                           fill='', outline=self.col, width=self.w)
+            return
 
-    elif current_tool == 'pixel':
-        x0, y0 = min(lx, event.x), min(ly, event.y)
-        x1, y1 = max(lx, event.x), max(ly, event.y)
-        can.create_rectangle(lx, ly, event.x, event.y, fill=col, outline=col, width=w)
-        draw.rectangle((x0, y0, x1, y1), fill=col, outline=col, width=w)
+        if self.current_tool == 'oval':
+            if self.preview_id is not None:
+                self.widget.delete(self.preview_id)
+            self.preview_id = self.widget.create_oval(self.lx, self.ly, event.x, event.y,
+                                                       fill='', outline=self.col, width=self.w)
+            return
 
-    elif current_tool == 'bubble':
-        x0, y0 = min(lx, event.x), min(ly, event.y)
-        x1, y1 = max(lx, event.x), max(ly, event.y)
-        can.create_oval(lx, ly, event.x, event.y, fill=col, outline=col, width=w)
-        draw.ellipse((x0, y0, x1, y1), fill=col, outline=col, width=w)
+    # --- Freehand tools ---
+        stroke = Freehand(self.lx, self.ly, event.x, event.y, self.w, self.col, self.current_tool)
+        stroke.draw(self.widget)
+        stroke.draw_pil(self.pil_draw)
+        self.current_stroke.append(stroke)
+        self.lx, self.ly = event.x, event.y
+    
 
-    elif current_tool == 'eraser':
-        can.create_line(lx, ly, event.x, event.y, fill=bg_col, width=15)
-        draw.line((lx, ly, event.x, event.y), fill=bg_col, width=15)
+    def on_release(self, event):
+        if self.selected is not None:
+            self.redraw(self.history)
+            self.selected = None
+            return
+        
+        if self.current_tool in ('rectangle', 'oval') and self.preview_id is not None : 
+            # Commit final shape to canvas + PIL
+            self.widget.delete(self.preview_id)
+            self.preview_id = None
+            x0, y0 = min(self.lx, event.x), min(self.ly, event.y)
+            x1, y1 = max(self.lx, event.x), max(self.ly, event.y)
+            shape = Shape(self.current_tool, x0, y0, x1, y1, self.col)
+            shape.draw(self.widget) 
+            shape.draw_pil(self.pil_draw)
+            self.pile.append(shape)
+            self.history.append([shape])
 
-    current_action.append((current_tool or 'line', lx, ly, event.x, event.y, col, w))
-    lx, ly = event.x, event.y
+        elif self.current_stroke:
+            self.history.append(self.current_stroke) 
+        self.current_stroke = []
 
+    def redraw(self, pile) :
+        self.widget.delete(tk.ALL) 
+        self.wid_width, self.wid_height = self._get_canvas_size()
+        self.pil_image = Image.new("RGB", (self.wid_width, self.wid_height), self.bg_col)
+        self.pil_draw = ImageDraw.Draw(self.pil_image)  
+        for action in pile:      # each item is a list
+            for stroke in action:        # each stroke is a Freehand or Shape
+                if isinstance(stroke, Shape):
+                    stroke.canvas_id = None
+                stroke.draw(self.widget)   
+                stroke.draw_pil(self.pil_draw)      
 
-def end_draw(event):
-    global history, current_action, preview_id  
+    def undo(self) :
+        if not self.history:
+            return
+        last = self.history.pop()
+        self.mirai.append(last)
+        for stroke in last :
+            if isinstance(stroke, Shape) and stroke in self.pile :
+                self.pile.remove(stroke)
+            
+        self.redraw(self.history)
 
-    if current_tool == 'rectangle' and preview_id is not None:
-        can.delete(preview_id) 
-        preview_id = None
-        # Commit final shape to canvas + PIL
-        x0, y0 = min(lx, event.x), min(ly, event.y)
-        x1, y1 = max(lx, event.x), max(ly, event.y)
-        can.create_rectangle(x0, y0, x1, y1, fill=col, outline=col, width=w)
-        draw.rectangle((x0, y0, x1, y1), fill=col, outline=col, width=w)  
-        current_action.append(('rectangle', x0, y0, x1, y1, col, w))  
+    def redo(self) :
+        if not self.mirai :
+            return 
+        last = self.mirai.pop()
+        self.history.append(last)
+        for stroke in last :
+            if isinstance(stroke, Shape) :
+                self.pile.append(stroke)
+        self.redraw(self.history) 
 
-    if current_tool == 'oval' and preview_id is not None :
-        can.delete(preview_id)
-        preview_id = None
-        # Commit final shape to canvas + PIL
-        x0, y0 = min(lx, event.x), min(ly, event.y)
-        x1, y1 = max(lx, event.x), max(ly, event.y) 
-        can.create_oval(x0, y0, x1, y1, fill=col, outline=col, width=w)    
-        draw.ellipse((x0, y0, x1, y1), fill=col, outline=col, width=w)
-        current_action.append(('oval', x0, y0, x1, y1, col, w)) 
+    def clear(self) :
+        self.mirai = self.history.copy()
+        self.pile.clear()
+        self.history.clear()
+        self.widget.delete(tk.ALL)
+        self.wid_width, self.wid_height = self._get_canvas_size()
+        self.pil_image = Image.new("RGB", (self.wid_width, self.wid_height), self.bg_col)
+        self.pil_draw  = ImageDraw.Draw(self.pil_image)
 
-    if current_action:
-        history.append(current_action)
-    current_action = []
-
-
-def _rebuild_image(pile, width, height):
-    img = Image.new('RGB', (width, height), bg_col)
-    d = ImageDraw.Draw(img)
-    for action in pile:
-        for tool, x0, y0, x1, y1, c, stroke_w in action:
-            if tool in ('line', ''):
-                d.line((x0, y0, x1, y1), fill=c, width=stroke_w)
-            elif tool in ('pixel', 'rectangle'):
-                d.rectangle((x0, y0, x1, y1), fill=c, outline=c, width=stroke_w)
-            elif tool == 'bubble':
-                d.ellipse((x0, y0, x1, y1), fill=c, outline=c, width=stroke_w)
-            elif tool == 'eraser':
-                d.line((x0, y0, x1, y1), fill=bg_col, width=15)
-    return img, d
-
-
-def redraw(pile):
-    global image, draw
-    can.delete(tk.ALL)
-    cw, ch = get_canvas_size()
-    image, draw = _rebuild_image(pile, cw, ch)
-    for action in pile:
-        for tool, x0, y0, x1, y1, c, stroke_w in action:
-            if tool in ('line', ''):
-                can.create_line(x0, y0, x1, y1, fill=c, width=stroke_w)
-            elif tool in ('pixel', 'rectangle'):
-                can.create_rectangle(x0, y0, x1, y1, fill=c, outline=c, width=stroke_w)
-            elif tool in ('bubble', 'oval') :
-                can.create_oval(x0, y0, x1, y1, fill=c, outline=c, width=stroke_w)
-
-
-def choosecolor():
-    global col
-    couleur = colorchooser.askcolor(title="Choisissez une couleur")
-    if couleur[1] is not None:
-        col = couleur[1]
-
-
-def clear():
-    global image, draw, history, mirai
-    can.delete(tk.ALL)
-    cw, ch = get_canvas_size()
-    image = Image.new("RGB", (cw, ch), bg_col)
-    draw = ImageDraw.Draw(image)
-    mirai = history
-    history = []
-
-
-def undo():
-    global mirai, history
-    if not history:
-        return
-    mirai.append(history.pop())
-    redraw(history)
+    def saver(self) :
+        fichier = filedialog.asksaveasfilename(
+        defaultextension=".png",                                    
+        filetypes=[("Image PNG", "*.png"), ("Image JPEG", "*.jpg")])
+        if fichier:
+            self.pil_image.save(fichier) 
 
 
-def redo():
-    global mirai, history
-    if not mirai:
-        return
-    history.append(mirai.pop())
-    redraw(history)
+class DrawingApp(object) :
+    def __init__(self) :
+        self.window = tk.Tk()
+        self.window.title("GM_Drawer")
+        self.canvas = DrawingCanvas(self.window)
+        self._build_ui()
+        self.window.mainloop()
+        
+    def _build_ui(self):
+        self.frame = tk.Frame(self.window)
+        self.frame.pack(side=tk.TOP, pady=2, padx=2, fill=tk.X)
+        self.window.columnconfigure(0, weight=1)
+        self.window.rowconfigure(0, weight=1)
+        self.window.rowconfigure(1, weight=1)
 
+        for i in range(7):
+            self.frame.columnconfigure(i, weight=1)
+        for i in range(3):
+            self.frame.rowconfigure(i, weight=1)
 
-def saver():
-    fichier = filedialog.asksaveasfilename(
-        defaultextension=".png",
-        filetypes=[("Image PNG", "*.png"), ("Image JPEG", "*.jpg")]
-    )
-    if fichier:
-        cw, ch = get_canvas_size()
-        export_img, _ = _rebuild_image(history, cw, ch)
-        export_img.save(fichier)
+    # --- Outils de dessin ---
+        tk.Label(self.frame, text='Outils :', font=('Arial', 8, 'bold')).grid(
+            row=0, column=2, columnspan=2)
 
+        self._add_button('Simple',    lambda: self.canvas.set_tool('line'),     
+                          row=1, column=2, rowspan=1, columnspan=2, bg='#FFA500')
+        self._add_button('Pixelise',  lambda: self.canvas.set_tool('pixel'),    
+                          row=2, column=2, rowspan=1, columnspan=1, bg='#FFA500')
+        self._add_button('Bulles',    lambda: self.canvas.set_tool('bubble'),   
+                          row=2, column=3, rowspan=1, columnspan=1, bg='#FFA500')
+        self._add_button('Rectangle', lambda: self.canvas.set_tool('rectangle'), 
+                         row=1, column=4, rowspan=1, columnspan=1, bg='#FFD700')
+        self._add_button('Ellipse',   lambda: self.canvas.set_tool('oval'),      
+                         row=2, column=4, rowspan=1, columnspan=1, bg='#FFD700')
 
-can.bind("<Button-1>", start_draw)
-can.bind("<B1-Motion>", Draw)
-can.bind("<ButtonRelease-1>", end_draw)
+    # --- Actions ---
+        self._add_button('Undo',         self.canvas.undo, 
+                          row=1, column=0, rowspan=1, columnspan=1, bg='#87CEEB')
+        self._add_button('Redo',         self.canvas.redo,  
+                         row=1, column=1, rowspan=1, columnspan=1, bg='#87CEEB')
+        self._add_button('Couleur',      self.choose_color, 
+                         row=1, column=5, rowspan=1, columnspan=1, bg='#87CEEB')
+        self._add_button('Gomme',        lambda: self.canvas.set_tool('eraser'),
+                          row=2, column=5, rowspan=1, columnspan=1, bg='#90EE90')
+        self._add_button('Effacer TOUT', self.canvas.clear,
+                          row=2, column=1, rowspan=1, columnspan=1, bg='#90EE90')
 
-#--------------- User Interface ---------------------
+    # --- Fichier ---
+        self._add_button('Enregistrer', self.canvas.saver,   
+                          row=2, column=0, rowspan=1, columnspan=1, bg='#87CEFA')
+        self._add_button('Quitter',     self.window.destroy, 
+                          row=1, column=6, rowspan=2, columnspan=1, bg='#FF6347')
 
-frame = tk.Frame(fen)
-frame.pack(side=tk.TOP, pady=2, padx=2)
-
-fen.columnconfigure(0, weight=1)
-fen.rowconfigure(0, weight=1)
-fen.rowconfigure(1, weight=1)
-
-for i in range(6):
-    frame.columnconfigure(i, weight=1)
-
-for i in range(3):
-    frame.rowconfigure(i, weight=1)
-
-# TOOLS
-outil_label = tk.Label(frame, text='Outils de dessin :', font=('Arial', 8, 'bold'))
-outil_label.grid(row=0, column=2, columnspan=2, pady=0)
-
-bou1 = tk.Button(frame, text='Simple', command=lambda: set_tool('line'), width=14, bg='#FFA500')
-bou1.grid(row=1, column=2, columnspan=2, sticky="nsew", padx=0)
-
-bou2 = tk.Button(frame, text='Pixelise', command=lambda: set_tool('pixel'), width=14, bg='#FFA500')
-bou2.grid(row=2, column=2, padx=0, sticky="nsew")
-
-bou3 = tk.Button(frame, text='Bulles', command=lambda: set_tool('bubble'), width=14, bg='#FFA500')
-bou3.grid(row=2, column=3, padx=0, sticky="nsew")
-
-bou_rect = tk.Button(frame, text='Rectangle', command=lambda: set_tool('rectangle'), width=14, bg='#FFD700')
-bou_rect.grid(row=1, column=4, padx=0, sticky="nsew")
-
-bou_oval = tk.Button(frame, text='Ellipse', command=lambda: set_tool('oval'), width=14, bg='#FFD700')
-bou_oval.grid(row=2, column=4, padx=0, sticky="nsew")
-
-change_c = tk.Button(frame, text='Choisir la couleur', command=choosecolor, width=14, bg='#87CEEB')
-change_c.grid(row=1, column=5, padx=0, sticky="nsew")
-
-# Actions
-undo_btn = tk.Button(frame, text='Undo', command=undo, width=14, bg='#87CEEB')
-undo_btn.grid(row=1, column=0, padx=0, sticky="nsew")
-
-redo_btn = tk.Button(frame, text='Redo', command=redo, width=14, bg='#87CEEB')
-redo_btn.grid(row=1, column=1, padx=0, sticky="nsew")
-
-eff = tk.Button(frame, text='Effacer TOUT', command=clear, width=14, bg='#90EE90')
-eff.grid(row=2, column=1, padx=0, sticky="nsew")
-
-gomme = tk.Button(frame, text='Gomme', command=lambda: set_tool('eraser'), width=14, bg='#90EE90')
-gomme.grid(row=2, column=5, padx=0, sticky="nsew")
-
-# Fichier
-bou4 = tk.Button(frame, text='Enregistrer', command=saver, width=14, bg='#87CEFA')
-bou4.grid(row=2, column=0, padx=0, sticky="nsew")
-
-quitter = tk.Button(frame, text='Quitter', command=fen.destroy, width=14, bg='#FF6347')
-quitter.grid(row=1, column=6, rowspan=2, sticky="nsew", padx=0)
-
-fen.mainloop()
+    def _add_button(self, text, command, row, column, rowspan, columnspan, bg=None) :
+            button = tk.Button(self.frame, text=text, command=command, width=14, bg=bg)
+            button.grid(row=row, column=column, rowspan=rowspan, columnspan=columnspan, padx=2, pady=2, sticky="nsew")
+            return button
+    
+    def choose_color(self) :
+        result = colorchooser.askcolor(title="Choisir la couleur")
+        if result[1] is not None :
+            self.canvas.col = result[1] 
+    
+if __name__ == "__main__":
+    DrawingApp()    
