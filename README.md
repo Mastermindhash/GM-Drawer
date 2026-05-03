@@ -4,10 +4,12 @@
 ## Preview
 <!-- Add screenshot here --> 
 --- 
-## Features - Freehand drawing (mouse-based) 
-- Simple and responsive UI (User Interface)
+## Features 
+- Freehand drawing (mouse-based)
+- Rubber-band Simple and responsive UI (User Interface)
 - Lightweight and fast execution
 - Basic color support
+
 ---
 ## Installation
 ### Prerequisites - Python 3.x installed 
@@ -27,7 +29,7 @@ pip install pillow python GM_Drawer.py
 
 ### Roadmap
 - [ ] Brush size slider (UI control)
-- [ ] OOP refactor (Object-Oriented Programming)
-- [ ] Shape selection & manipulation
-- [ ] Save / Load drawings
-- [ ] Color picker integration Contribution 
+- [X] OOP refactor (Object-Oriented Programming)
+- [X] Shape selection & manipulation
+- [X] Save / Load drawings
+- [X] Color picker integration Contribution 
